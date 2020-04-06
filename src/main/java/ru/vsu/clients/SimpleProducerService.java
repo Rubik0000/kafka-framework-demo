@@ -1,57 +1,55 @@
 package ru.vsu.clients;
 
-import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.utils.KafkaThread;
+import ru.vsu.configurationservices.ConfigurationListener;
 import ru.vsu.factories.producers.original.OriginalProducerFactory;
-import ru.vsu.strategies.SendStrategy;
+import ru.vsu.strategies.send.SendStrategy;
+import ru.vsu.strategies.storage.StorageStrategy;
 import ru.vsu.utils.Utils;
 
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class SimpleMyProducer<K, V> implements MyProducer<K, V> {
+public class SimpleProducerService<K, V> implements ProducerService<K, V>, ConfigurationListener {
 
-    private final Queue<ProducerRecord<K, V>> queue;
+    //private final Queue<ProducerRecord<K, V>> queue;
     private final SendStrategy<K, V> sendStrategy;
+    private final StorageStrategy<K, V> storageStrategy;
     private final OriginalProducerFactory<K, V> originalProducerFactory;
     private volatile boolean isRunning;
-    private volatile boolean forceStop;
+    private volatile boolean isReconfiguring;
     private volatile Producer<K, V> producer;
-    private volatile long idleTimeout;
-    private volatile long lastCallTime;
     private Thread senderThread;
 
 
-    public SimpleMyProducer(
+    public SimpleProducerService(
             OriginalProducerFactory<K, V> originalProducerFactory,
             Map<String, Object> configs,
-            Queue<ProducerRecord<K, V>> queue,
             SendStrategy<K, V> sendStrategy,
-            long idleTimeout) {
+            StorageStrategy<K, V> storageStrategy) {
         this.originalProducerFactory = originalProducerFactory;
         this.producer = originalProducerFactory.createProducer(configs);
-        this.isRunning = false;
-        this.queue = queue;
+        this.isRunning = true;
+        this.isReconfiguring = false;
+        this.storageStrategy = storageStrategy;
+        //this.queue = new LinkedBlockingDeque<>();
         this.sendStrategy = sendStrategy;
-        this.idleTimeout = idleTimeout;
-
-//        senderThread = new KafkaThread("fuck", this::execute, false);
-//        senderThread.start();
+        senderThread = new KafkaThread("fuck", this::execute, true);
+        senderThread.start();
     }
 
-    public SimpleMyProducer(
+    public SimpleProducerService(
             OriginalProducerFactory<K, V> originalProducerFactory,
             Properties properties,
-            Queue<ProducerRecord<K, V>> queue,
             SendStrategy<K, V> sendStrategy,
-            long idleTimeout) {
-        this(originalProducerFactory, Utils.propertiesToMap(properties), queue, sendStrategy, idleTimeout);
+            StorageStrategy<K, V> storageStrategy) {
+        this(originalProducerFactory, Utils.propertiesToMap(properties), sendStrategy, storageStrategy);
     }
 
 
@@ -62,13 +60,10 @@ public class SimpleMyProducer<K, V> implements MyProducer<K, V> {
 
     @Override
     public void send(Collection<ProducerRecord<K, V>> producerRecords) {
-        lastCallTime = System.currentTimeMillis();
-        if (!isRunning) {
-            senderThread = new KafkaThread("fuck", this::execute, false);
-            senderThread.start();
-            isRunning = true;
+        if (isRunning) {
+            storageStrategy.add(producerRecords);
+            //queue.addAll(producerRecords);
         }
-        queue.addAll(producerRecords);
     }
 
     @Override
@@ -81,7 +76,7 @@ public class SimpleMyProducer<K, V> implements MyProducer<K, V> {
         return producer.metrics();
     }
 
-    /*@Override
+    @Override
     public void close(long timeout) {
         try {
             isRunning = false;
@@ -101,22 +96,31 @@ public class SimpleMyProducer<K, V> implements MyProducer<K, V> {
     @Override
     public void close() throws Exception {
         close(Long.MAX_VALUE);
-    }*/
+    }
+
+    @Override
+    public void configure(Map<String, Object> configs) {
+        isReconfiguring = true;
+        producer.close();
+        producer = originalProducerFactory.createProducer(configs);
+        System.out.println("Producer has been reconfigured with " + configs);
+        isReconfiguring = false;
+    }
 
     protected void execute() {
         try {
-            System.out.println("Start demon");
-            while ((System.currentTimeMillis() - lastCallTime) < idleTimeout) {
-                ProducerRecord<K, V> record = queue.peek();
-                if (record != null) {
-                    sendStrategy.send(producer, Collections.singletonList(record));
-                    queue.poll();
+            while (isRunning || !storageStrategy.isEmpty()) {
+                Collection<ProducerRecord<K, V>> records = storageStrategy.get();
+                if (!records.isEmpty() && !isReconfiguring) {
+                    try {
+                        sendStrategy.send(producer, records);
+                        storageStrategy.getAndRemove();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
-            producer.close();
-            isRunning = false;
-            System.out.println("Stop demon");
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }

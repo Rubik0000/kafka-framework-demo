@@ -1,4 +1,4 @@
-package ru.vsu.strategies;
+package ru.vsu.strategies.send;
 
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;

@@ -1,35 +1,20 @@
 package ru.vsu;
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.clients.admin.ConfigEntry;
-import org.apache.kafka.clients.admin.DescribeConfigsResult;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
-import ru.vsu.clients.AbstractProducer;
-import ru.vsu.clients.SimpleProducer;
+import ru.vsu.clients.AbstractMyProducer;
+import ru.vsu.clients.MyProducer;
+import ru.vsu.clients.SimpleMyProducer;
+import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.shceduling.Task;
 import ru.vsu.strategies.SimpleSendStrategy;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.stream.Collectors;
+import java.util.concurrent.*;
 
 public class Main {
 
@@ -42,14 +27,20 @@ public class Main {
         producerProperties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
-        AbstractProducer<String, String> myProducer = new SimpleProducer<>(
-                kafkaProducer,
+        MyProducer<String, String> myProducer = new SimpleMyProducer<>(
+                new OriginalKafkaProducerFactory<>(),
+                producerProperties,
                 new LinkedBlockingQueue<>(),
-                new SimpleSendStrategy<>());
+                new SimpleSendStrategy<>(),
+                5000
+        );
 
-
-            executor.submit(new Task(myProducer));
-            myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
+        //executor.submit(new Task(myProducer));
+        myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
+        ZooKeeper zooKeeper = new ZooKeeper("localhost:2181", 2000, null);
+        //zooKeeper.addWatch();
+        //myProducer.close(10000);
+        //executor.shutdown();
 
     }
     /*public static void main(String[] args) {

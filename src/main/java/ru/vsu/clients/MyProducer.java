@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-public interface Producer<K, V> extends AutoCloseable {
+public interface MyProducer<K, V> /*extends AutoCloseable*/ {
 
     void send(ProducerRecord<K, V> record);
 
@@ -30,5 +30,5 @@ public interface Producer<K, V> extends AutoCloseable {
 
     Map<MetricName, ? extends Metric> metrics();
 
-    void close(long timeout);
+    //void close(long timeout);
 }

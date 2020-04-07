@@ -1,23 +1,18 @@
 package ru.vsu.dao;
 
-import org.apache.kafka.clients.producer.ProducerRecord;
+import ru.vsu.dao.pojo.ProducerRecordPojo;
 
-public class StoredProducerRecord<K, V> extends ProducerRecord<K, V> {
+public class StoredProducerRecord {
 
     private String id;
     private boolean wasSent;
+    private ProducerRecordPojo producerRecordPojo;
 
 
-    public StoredProducerRecord(String id, boolean wasSent, ProducerRecord<K, V> producerRecord) {
-        super(
-                producerRecord.topic(),
-                producerRecord.partition(),
-                producerRecord.timestamp(),
-                producerRecord.key(),
-                producerRecord.value(),
-                producerRecord.headers());
+    public StoredProducerRecord(String id, boolean wasSent, ProducerRecordPojo producerRecordPojo) {
         this.id = id;
         this.wasSent = wasSent;
+        this.producerRecordPojo = producerRecordPojo;
     }
 
 
@@ -29,11 +24,20 @@ public class StoredProducerRecord<K, V> extends ProducerRecord<K, V> {
         this.id = id;
     }
 
-    public boolean isWasSent() {
+    public boolean wasSent() {
         return wasSent;
     }
 
     public void setWasSent(boolean wasSent) {
         this.wasSent = wasSent;
+    }
+
+
+    public ProducerRecordPojo getProducerRecordPojo() {
+        return producerRecordPojo;
+    }
+
+    public void setProducerRecordPojo(ProducerRecordPojo producerRecordPojo) {
+        this.producerRecordPojo = producerRecordPojo;
     }
 }

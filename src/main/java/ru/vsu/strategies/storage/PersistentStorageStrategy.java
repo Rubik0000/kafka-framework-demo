@@ -1,56 +1,93 @@
 package ru.vsu.strategies.storage;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import ru.vsu.dao.StoredProducerRecord;
 import ru.vsu.dao.StoredProducerRecordsDao;
+import ru.vsu.dao.pojo.ProducerRecordPojo;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public final class PersistentStorageStrategy<K, V> implements StorageStrategy<K, V> {
 
     private final StoredProducerRecordsDao producerRecordsDao;
-    private final StorageStrategy<K, V> strategy;
+    private final Queue<String> queue;
 
 
-    public PersistentStorageStrategy(StoredProducerRecordsDao producerRecordsDao, StorageStrategy<K, V> strategy) {
-        if (strategy instanceof PersistentStorageStrategy) {
-            throw new IllegalArgumentException("Cannot use PersistentStorageStrategy as proxy strategy");
-        }
+    public PersistentStorageStrategy(StoredProducerRecordsDao producerRecordsDao) {
         this.producerRecordsDao = producerRecordsDao;
-        this.strategy = strategy;
+        this.queue = new LinkedBlockingDeque<>();
+        try {
+            producerRecordsDao.getUnsentRecords().forEach(record -> queue.add(record.getId()));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
 
     @Override
     public void add(Collection<ProducerRecord<K, V>> producerRecords) {
-        List<ProducerRecord<K, V>> storedRecords = producerRecords.stream()
-                .map(record -> new StoredProducerRecord<>(UUID.randomUUID().toString(), false, record))
-                .collect(Collectors.toList());
-        for (ProducerRecord<K, V> record : storedRecords) {
-            producerRecordsDao.add((StoredProducerRecord) record);
+        for (ProducerRecord<K, V> record : producerRecords) {
+            try {
+                String id = UUID.randomUUID().toString();
+                producerRecordsDao.add(new StoredProducerRecord(id, false, new ProducerRecordPojo(record)));
+                queue.add(id);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
-        strategy.add(storedRecords);
     }
 
     @Override
     public Collection<ProducerRecord<K, V>> get() {
-        return strategy.get();
+        try {
+            return wrapIntoCollection(producerRecordsDao.getById(queue.peek()));
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Override
     public Collection<ProducerRecord<K, V>> getAndRemove() {
-        Collection<ProducerRecord<K, V>> records = strategy.getAndRemove();
-        for (ProducerRecord<K, V> record : records) {
-            producerRecordsDao.delete(((StoredProducerRecord) record).getId());
+        try {
+            String id = queue.poll();
+            Collection<ProducerRecord<K, V>> producerRecords = wrapIntoCollection(producerRecordsDao.getById(id));
+            producerRecordsDao.delete(id);
+            return producerRecords;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
         }
-        return records;
     }
 
     @Override
     public boolean isEmpty() {
-        return strategy.isEmpty();
+        return queue.isEmpty();
+    }
+
+    private Collection<ProducerRecord<K, V>> wrapIntoCollection(StoredProducerRecord record) {
+        if (record == null) {
+            return Collections.emptyList();
+        }
+        ProducerRecordPojo producerRecordPojo = record.getProducerRecordPojo();
+        Headers headers = new RecordHeaders();
+        if (producerRecordPojo.getHeaders() != null) {
+            producerRecordPojo.getHeaders().forEach(h -> headers.add(new RecordHeader(h.getKey(), h.getValue())));
+        }
+        ProducerRecord<K, V> producerRecord = new ProducerRecord<>(
+                producerRecordPojo.getTopic(),
+                producerRecordPojo.getPartition(),
+                producerRecordPojo.getTimestamp(),
+                (K) producerRecordPojo.getKey(),
+                (V) producerRecordPojo.getValue(),
+                headers
+        );
+        return Collections.singletonList(producerRecord);
     }
 }

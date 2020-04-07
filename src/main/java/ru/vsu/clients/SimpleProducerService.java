@@ -122,6 +122,7 @@ public class SimpleProducerService<K, V> implements ProducerService<K, V>, Confi
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 }

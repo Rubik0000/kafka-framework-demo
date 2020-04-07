@@ -1,25 +1,17 @@
 package ru.vsu;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryNTimes;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import ru.vsu.clients.SimpleProducerService;
-import ru.vsu.configurationservices.ConfigurationService;
-import ru.vsu.configurationservices.deserializers.JsonDeserializer;
-import ru.vsu.configurationservices.zookeeper.ZookeeperConfigurationService;
+import ru.vsu.dao.ApacheDerbyDao;
 import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.strategies.send.SimpleSendStrategy;
+import ru.vsu.strategies.storage.PersistentStorageStrategy;
 import ru.vsu.strategies.storage.StoreByOneStrategy;
-import ru.vsu.utils.Utils;
 
 import java.time.LocalDateTime;
 import java.util.Properties;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -34,12 +26,16 @@ public class Main {
         producerProperties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
         //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
+        ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
+
         SimpleProducerService<String, String> myProducer = new SimpleProducerService<>(
                 new OriginalKafkaProducerFactory<>(),
                 producerProperties,
                 new SimpleSendStrategy<>(),
-                new StoreByOneStrategy<>()
+                new PersistentStorageStrategy<>(apacheDerbyDao)
         );
+
+        //myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 
 //        kafkaProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 //        System.in.read();
@@ -50,8 +46,10 @@ public class Main {
         //myProducer.close(10000);
         //executor.shutdown();
 
+        myProducer.close(10000);
+        apacheDerbyDao.close();
 
-        RetryPolicy retryPolicy = new RetryNTimes(3, 100);
+        /*RetryPolicy retryPolicy = new RetryNTimes(3, 100);
         CuratorFramework client = CuratorFrameworkFactory.newClient("localhost:2181", retryPolicy);
         client.start();
 
@@ -72,10 +70,9 @@ public class Main {
         }
         myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 
-        System.in.read();
+        System.in.read();*/
 
-        myProducer.close();
-        configurationService.close();
+        //configurationService.close();
         /*client.getData().usingWatcher(new CuratorWatcher() {
             @Override
             public void process(WatchedEvent event) throws Exception {

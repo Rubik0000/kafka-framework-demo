@@ -1,0 +1,13 @@
+@startuml
+
+Consumer ->> Broker: listen
+Producer -> Broker: messages
+activate Producer
+Broker --> Producer: confirmation
+deactivate Producer
+Broker --> Consumer: messages
+activate Consumer
+Consumer ->> Broker: listen
+deactivate Consumer
+
+@enduml

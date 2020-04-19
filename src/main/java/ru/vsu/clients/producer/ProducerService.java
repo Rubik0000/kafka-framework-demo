@@ -1,4 +1,4 @@
-package ru.vsu.clients;
+package ru.vsu.clients.producer;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Metric;

@@ -1,0 +1,20 @@
+@startuml
+
+actor Administrator order 1
+participant "Configuration storage" order 2
+participant "Configuration service" order 3
+participant Subscribers order 4
+
+
+"Configuration service" ->> "Configuration storage": listen
+Administrator -> "Configuration storage": new configuration
+activate Administrator
+"Configuration storage" --> Administrator: confirmation
+deactivate Administrator
+"Configuration storage" --> "Configuration service": new configuration
+activate "Configuration service"
+"Configuration service" ->> Subscribers: new configuration
+"Configuration service" ->> "Configuration storage": listen
+deactivate "Configuration service"
+
+@enduml

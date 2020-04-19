@@ -1,39 +1,69 @@
 package ru.vsu;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import ru.vsu.clients.SimpleProducerService;
+import ru.vsu.clients.consumer.RecordListener;
+import ru.vsu.clients.consumer.SubscribeConsumerService;
+import ru.vsu.clients.consumer.impl.GroupManagedSubscribeConsumerService;
+import ru.vsu.clients.producer.SimpleProducerService;
 import ru.vsu.dao.ApacheDerbyDao;
+import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
 import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.strategies.send.SimpleSendStrategy;
 import ru.vsu.strategies.storage.PersistentStorageStrategy;
-import ru.vsu.strategies.storage.StoreByOneStrategy;
 
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.Properties;
+import java.util.Timer;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(5);
+        //ExecutorService executor = Executors.newFixedThreadPool(5);
 
         Properties producerProperties = new Properties();
         producerProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         producerProperties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
         producerProperties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
+
+        Properties consumerProperties = new Properties();
+        consumerProperties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        consumerProperties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getCanonicalName());
+        consumerProperties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getCanonicalName());
+        consumerProperties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
+        consumerProperties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
         //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
-        ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
+        /*ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
 
         SimpleProducerService<String, String> myProducer = new SimpleProducerService<>(
                 new OriginalKafkaProducerFactory<>(),
                 producerProperties,
                 new SimpleSendStrategy<>(),
                 new PersistentStorageStrategy<>(apacheDerbyDao)
+        );*/
+
+        SubscribeConsumerService<String, String> consumerService = new GroupManagedSubscribeConsumerService<>(
+                new OriginalKafkaConsumerFactory<>(),
+                consumerProperties
         );
+
+        consumerService.subscribe("test2", 2, records -> {
+            records.forEach(r -> System.out.println(String.format("Partition: %d, Value: %s", r.partition(), r.value())));
+        });
+
+        System.in.read();
+
+        consumerService.close();
 
         //myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 
@@ -46,8 +76,8 @@ public class Main {
         //myProducer.close(10000);
         //executor.shutdown();
 
-        myProducer.close(10000);
-        apacheDerbyDao.close();
+        /*myProducer.close(10000);
+        apacheDerbyDao.close();*/
 
         /*RetryPolicy retryPolicy = new RetryNTimes(3, 100);
         CuratorFramework client = CuratorFrameworkFactory.newClient("localhost:2181", retryPolicy);

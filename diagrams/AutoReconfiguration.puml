@@ -1,20 +1,22 @@
 @startuml
+skinparam shadowing false
 
 actor Administrator order 1
-participant "Configuration storage" order 2
-participant "Configuration service" order 3
-participant Subscribers order 4
+database "Configuration\nstorage" order 2
+participant "Configuration\nservice" order 3
+participant "Subscribers\n(producers, consumers)" order 4
 
 
-"Configuration service" ->> "Configuration storage": listen
-Administrator -> "Configuration storage": new configuration
+"Configuration\nservice" ->> "Configuration\nstorage": listen
+Administrator -> "Configuration\nstorage": new configuration
 activate Administrator
-"Configuration storage" --> Administrator: confirmation
+"Configuration\nstorage" --> Administrator: confirmation
 deactivate Administrator
-"Configuration storage" --> "Configuration service": new configuration
-activate "Configuration service"
-"Configuration service" ->> Subscribers: new configuration
-"Configuration service" ->> "Configuration storage": listen
-deactivate "Configuration service"
+"Configuration\nstorage" --> "Configuration\nservice": new configuration
+activate "Configuration\nservice"
+"Configuration\nservice" ->> "Subscribers\n(producers, consumers)": new configuration
+"Configuration\nservice" ->> "Configuration\nstorage": listen
+deactivate "Configuration\nservice"
+|||
 
 @enduml

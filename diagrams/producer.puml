@@ -1,0 +1,48 @@
+@startuml
+skinparam shadowing false
+
+participant Application order 1
+participant "Producer service" order 2
+database "Local storage" order 3
+participant "Record queue" order 4
+participant "Background send thread" order 5
+database "Kafka cluster" order 6
+
+Application -> "Producer service" ** : new object
+
+"Producer service" -> "Local storage": unsent records request
+activate "Producer service"
+"Local storage" --> "Producer service": unsent records
+
+"Producer service" -> "Record queue": unsent records
+
+"Producer service" ->> "Background send thread" ** : signal to start background thread
+deactivate "Producer service"
+
+loop
+  "Background send thread" -> "Record queue": records request
+  activate "Background send thread"
+  "Record queue" --> "Background send thread": records
+  "Background send thread" -> "Kafka cluster": records
+  "Kafka cluster" --> "Background send thread": confirmation
+  deactivate "Background send thread"
+
+  alt records have been sent successfully
+    "Background send thread" -> "Record queue": delete request
+    activate "Background send thread"
+    "Background send thread" -> "Local storage": delete request
+    deactivate "Background send thread"
+  end
+end
+
+
+Application -> "Producer service": records
+activate "Producer service"
+"Producer service" -> "Local storage": records
+"Producer service" -> "Record queue": records
+"Producer service" --> Application: confirmation
+deactivate "Producer service"
+
+
+
+@enduml

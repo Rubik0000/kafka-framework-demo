@@ -1,0 +1,21 @@
+@startuml
+skinparam shadowing false
+
+
+database "Kafka broker" order 10
+
+par
+Application -> "Local cache": key
+"Local cache" --> Application: value
+
+else
+loop
+  "Background\nconsumer" ->> "Kafka broker": change request
+  "Kafka broker" --> "Background\nconsumer": data changes
+  "Background\nconsumer" -> "Local cache": data changes
+end
+end
+
+
+
+@enduml

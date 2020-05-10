@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingDeque;
 
-public class StoreByOneStrategy<K, V> implements StorageStrategy<K, V> {
+public class StoreByOneQueueStorageStrategy<K, V> implements QueueStorageStrategy<K, V> {
 
     private final Queue<ProducerRecord<K, V>> queue = new LinkedBlockingDeque<>();
 

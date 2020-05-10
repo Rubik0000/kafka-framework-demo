@@ -1,9 +1,6 @@
 package ru.vsu.clients.consumer;
 
-import java.util.Collection;
-import java.util.Collections;
-
-public interface SubscribePartitionConsumerService<K, V> extends SubscribeConsumerService<K, V> {
+public interface PartitionConsumerService<K, V> extends ConsumerService<K, V> {
 
     //void subscribeOnPartitions(Collection<TopicWithPartition> topicWithPartitions, RecordListener<K, V> recordListener);
 

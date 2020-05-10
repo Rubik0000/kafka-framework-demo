@@ -1,0 +1,16 @@
+@startuml
+skinparam shadowing false
+
+interface ConfigurationListener
+interface ConfigurationService
+abstract AbstractConsumerService
+
+ConfigurationService o--left- ConfigurationListener
+AbstractConsumerService -up..|> ConfigurationListener
+KafkaProducerService -down..|> ConfigurationListener
+
+KafkaConfigurationService -up..|> ConfigurationService
+ZookeeperConfigurationService -down..|> ConfigurationService
+
+
+@enduml

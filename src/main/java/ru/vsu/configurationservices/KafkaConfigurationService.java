@@ -1,15 +1,15 @@
 package ru.vsu.configurationservices;
 
-import ru.vsu.clients.consumer.SubscribeConsumerService;
+import ru.vsu.clients.consumer.ConsumerService;
 
 import java.util.Map;
 
 public class KafkaConfigurationService implements ConfigurationService {
 
-    private SubscribeConsumerService<String, String> consumerService;
+    private ConsumerService<String, String> consumerService;
 
 
-    public KafkaConfigurationService(SubscribeConsumerService<String, String> consumerService) {
+    public KafkaConfigurationService(ConsumerService<String, String> consumerService) {
         this.consumerService = consumerService;
     }
 

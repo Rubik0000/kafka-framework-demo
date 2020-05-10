@@ -1,6 +1,5 @@
 package ru.vsu.strategies.storage;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -13,13 +12,13 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
 
-public final class PersistentStorageStrategy<K, V> implements StorageStrategy<K, V> {
+public final class PersistentQueueStorageStrategy<K, V> implements QueueStorageStrategy<K, V> {
 
     private final StoredProducerRecordsDao producerRecordsDao;
     private final Queue<String> queue;
 
 
-    public PersistentStorageStrategy(StoredProducerRecordsDao producerRecordsDao) {
+    public PersistentQueueStorageStrategy(StoredProducerRecordsDao producerRecordsDao) {
         this.producerRecordsDao = producerRecordsDao;
         this.queue = new LinkedBlockingDeque<>();
         try {

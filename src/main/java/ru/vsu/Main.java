@@ -1,28 +1,15 @@
 package ru.vsu;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import ru.vsu.clients.consumer.RecordListener;
-import ru.vsu.clients.consumer.SubscribeConsumerService;
-import ru.vsu.clients.consumer.impl.GroupManagedSubscribeConsumerService;
-import ru.vsu.clients.producer.SimpleProducerService;
-import ru.vsu.dao.ApacheDerbyDao;
+import ru.vsu.clients.consumer.PartitionConsumerService;
+import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
 import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
-import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
-import ru.vsu.strategies.send.SimpleSendStrategy;
-import ru.vsu.strategies.storage.PersistentStorageStrategy;
 
-import java.time.Duration;
-import java.util.Collections;
 import java.util.Properties;
-import java.util.Timer;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class Main {
 
@@ -33,6 +20,8 @@ public class Main {
         producerProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         producerProperties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
         producerProperties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
+        producerProperties.setProperty(ProducerConfig.RETRIES_CONFIG, "3");
+        producerProperties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "180000");
 
         Properties consumerProperties = new Properties();
         consumerProperties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
@@ -43,22 +32,33 @@ public class Main {
 
         //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
-        /*ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
+        //ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
+        //RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
 
-        SimpleProducerService<String, String> myProducer = new SimpleProducerService<>(
+
+        /*KafkaProducerService<String, String> myProducer = new KafkaProducerService<>(
                 new OriginalKafkaProducerFactory<>(),
                 producerProperties,
                 new SimpleSendStrategy<>(),
-                new PersistentStorageStrategy<>(apacheDerbyDao)
+                new PersistentQueueStorageStrategy<>(rocksDbDao)
         );*/
-
-        SubscribeConsumerService<String, String> consumerService = new GroupManagedSubscribeConsumerService<>(
+       /* KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
+        long start = System.currentTimeMillis();
+        kafkaProducer.send(new ProducerRecord<>("demo", "test msg"), (metadata, exception) -> {
+            exception.printStackTrace();
+            System.out.println("Spend time :" + (System.currentTimeMillis() - start));
+        });
+        System.out.println("here");
+        System.in.read();
+        kafkaProducer.close(Duration.ofMillis(10000));*/
+        PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
                 new OriginalKafkaConsumerFactory<>(),
                 consumerProperties
         );
 
-        consumerService.subscribe("test2", 2, records -> {
-            records.forEach(r -> System.out.println(String.format("Partition: %d, Value: %s", r.partition(), r.value())));
+        consumerService.subscribe("test3", new int[] {0}, 3, r -> {
+            System.out.println(String.format("Thread: %s, Partition: %d, Value: %s",
+                    Thread.currentThread().getName(), r.partition(), r.value()));
         });
 
         System.in.read();
@@ -66,6 +66,9 @@ public class Main {
         consumerService.close();
 
         //myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
+
+        //myProducer.close(10000);
+        //rocksDbDao.close();
 
 //        kafkaProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 //        System.in.read();

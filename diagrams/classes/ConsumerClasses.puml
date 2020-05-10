@@ -1,0 +1,26 @@
+@startuml
+skinparam shadowing false
+
+interface ConsumerService
+interface PartitionManagedConsumerService
+interface ConfigurationListener
+abstract AbstractConsumerService
+abstract AbstractConsumerThread
+
+ConsumerService <|-- PartitionManagedConsumerService
+ConsumerService <|.. GroupManagedKafkaConsumerService
+PartitionManagedConsumerService <|..down- PartitionManagedKafkaConsumerService
+
+AbstractConsumerService -up--|> ConfigurationListener
+GroupManagedKafkaConsumerService -left--|> AbstractConsumerService
+PartitionManagedKafkaConsumerService -right--|> AbstractConsumerService
+
+GroupManagedConsumerThread -left--|> AbstractConsumerThread
+PartitionManagedConsumerThread -right--|> AbstractConsumerThread
+
+AbstractConsumerService -up--o AbstractConsumerThread
+GroupManagedConsumerThread -down--* GroupManagedKafkaConsumerService
+PartitionManagedConsumerThread -down--* PartitionManagedKafkaConsumerService
+
+
+@enduml

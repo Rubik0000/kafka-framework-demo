@@ -4,7 +4,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 
 import java.util.Collection;
 
-public interface StorageStrategy<K, V> {
+public interface QueueStorageStrategy<K, V> {
 
     void add(Collection<ProducerRecord<K, V>> records);
 

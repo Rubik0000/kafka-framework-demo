@@ -6,9 +6,8 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import ru.vsu.configurationservices.ConfigurationListener;
 import ru.vsu.configurationservices.ConfigurationService;
-import ru.vsu.configurationservices.deserializers.ConfigurationDeserializer;
+import ru.vsu.dao.serialization.deserializers.ByteDeserializer;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -20,11 +19,11 @@ public class ZookeeperConfigurationService implements ConfigurationService {
 
 
     private final CuratorFramework curatorFramework;
-    private final ConfigurationDeserializer deserializer;
+    private final ByteDeserializer<Map<String, Object>> deserializer;
     private final Map<String, Set<ConfigurationListener>> listeners;
 
 
-    public ZookeeperConfigurationService(CuratorFramework curatorFramework, ConfigurationDeserializer deserializer) {
+    public ZookeeperConfigurationService(CuratorFramework curatorFramework, ByteDeserializer<Map<String, Object>> deserializer) {
         this.curatorFramework = curatorFramework;
         this.deserializer = deserializer;
         this.listeners = new ConcurrentHashMap<>();

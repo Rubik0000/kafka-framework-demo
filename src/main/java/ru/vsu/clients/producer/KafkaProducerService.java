@@ -9,18 +9,18 @@ import org.apache.kafka.common.utils.KafkaThread;
 import ru.vsu.configurationservices.ConfigurationListener;
 import ru.vsu.factories.producers.original.OriginalProducerFactory;
 import ru.vsu.strategies.send.SendStrategy;
-import ru.vsu.strategies.storage.StorageStrategy;
+import ru.vsu.strategies.storage.QueueStorageStrategy;
 import ru.vsu.utils.Utils;
 
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class SimpleProducerService<K, V> implements ProducerService<K, V>, ConfigurationListener {
+public class KafkaProducerService<K, V> implements ProducerService<K, V>, ConfigurationListener {
 
     //private final Queue<ProducerRecord<K, V>> queue;
     private final SendStrategy<K, V> sendStrategy;
-    private final StorageStrategy<K, V> storageStrategy;
+    private final QueueStorageStrategy<K, V> queueStorageStrategy;
     private final OriginalProducerFactory<K, V> originalProducerFactory;
     private volatile boolean isRunning;
     private volatile boolean isReconfiguring;
@@ -28,28 +28,28 @@ public class SimpleProducerService<K, V> implements ProducerService<K, V>, Confi
     private Thread senderThread;
 
 
-    public SimpleProducerService(
+    public KafkaProducerService(
             OriginalProducerFactory<K, V> originalProducerFactory,
             Map<String, Object> configs,
             SendStrategy<K, V> sendStrategy,
-            StorageStrategy<K, V> storageStrategy) {
+            QueueStorageStrategy<K, V> queueStorageStrategy) {
         this.originalProducerFactory = originalProducerFactory;
         this.producer = originalProducerFactory.createProducer(configs);
         this.isRunning = true;
         this.isReconfiguring = false;
-        this.storageStrategy = storageStrategy;
+        this.queueStorageStrategy = queueStorageStrategy;
         //this.queue = new LinkedBlockingDeque<>();
         this.sendStrategy = sendStrategy;
         senderThread = new KafkaThread("fuck", this::execute, true);
         senderThread.start();
     }
 
-    public SimpleProducerService(
+    public KafkaProducerService(
             OriginalProducerFactory<K, V> originalProducerFactory,
             Properties properties,
             SendStrategy<K, V> sendStrategy,
-            StorageStrategy<K, V> storageStrategy) {
-        this(originalProducerFactory, Utils.propertiesToMap(properties), sendStrategy, storageStrategy);
+            QueueStorageStrategy<K, V> queueStorageStrategy) {
+        this(originalProducerFactory, Utils.propertiesToMap(properties), sendStrategy, queueStorageStrategy);
     }
 
 
@@ -61,7 +61,7 @@ public class SimpleProducerService<K, V> implements ProducerService<K, V>, Confi
     @Override
     public void send(Collection<ProducerRecord<K, V>> producerRecords) {
         if (isRunning) {
-            storageStrategy.add(producerRecords);
+            queueStorageStrategy.add(producerRecords);
             //queue.addAll(producerRecords);
         }
     }
@@ -109,12 +109,12 @@ public class SimpleProducerService<K, V> implements ProducerService<K, V>, Confi
 
     protected void execute() {
         try {
-            while (isRunning || !storageStrategy.isEmpty()) {
-                Collection<ProducerRecord<K, V>> records = storageStrategy.get();
+            while (isRunning || !queueStorageStrategy.isEmpty()) {
+                Collection<ProducerRecord<K, V>> records = queueStorageStrategy.get();
                 if (!records.isEmpty() && !isReconfiguring) {
                     try {
                         sendStrategy.send(producer, records);
-                        storageStrategy.getAndRemove();
+                        queueStorageStrategy.getAndRemove();
                     } catch (ExecutionException e) {
                         e.printStackTrace();
                     }

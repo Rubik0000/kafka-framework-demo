@@ -43,7 +43,7 @@ public class PartitionManagedConsumerThread<K, V> extends AbstractConsumerThread
                 if (!consumerRecords.isEmpty()) {
                     System.out.println("Consumer thread: " + getName());
                     consumerRecords.forEach(record -> executorService.submit(() -> getListener().listen(record)));
-                    kafkaConsumer.commitSync();
+                    //kafkaConsumer.commitSync();
                 }
             }
         }

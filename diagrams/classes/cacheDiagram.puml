@@ -1,0 +1,23 @@
+@startuml
+
+skinparam shadowing false
+
+interface Map
+interface Cache
+interface ConsumerServiceFactory
+interface OriginalProducerFactory
+interface ConsumerService
+interface Producer
+
+Map <|--left- Cache
+Cache <|.. KafkaCache
+KafkaCache o--left- ConsumerServiceFactory
+KafkaCache o--right- OriginalProducerFactory
+
+ConsumerServiceFactory -down--> ConsumerService
+OriginalProducerFactory -down--> Producer
+
+KafkaCache *--down- ConsumerService
+KafkaCache *--down- Producer
+
+@enduml

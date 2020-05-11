@@ -2,11 +2,14 @@ package ru.vsu;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import ru.vsu.clients.consumer.PartitionConsumerService;
 import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
 import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
+import ru.vsu.kafkacache.Cache;
+import ru.vsu.kafkacache.KafkaCache;
 
 import java.util.Properties;
 import java.util.UUID;
@@ -51,7 +54,7 @@ public class Main {
         System.out.println("here");
         System.in.read();
         kafkaProducer.close(Duration.ofMillis(10000));*/
-        PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
+        /*PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
                 new OriginalKafkaConsumerFactory<>(),
                 consumerProperties
         );
@@ -59,11 +62,17 @@ public class Main {
         consumerService.subscribe("test3", new int[] {0}, 3, r -> {
             System.out.println(String.format("Thread: %s, Partition: %d, Value: %s",
                     Thread.currentThread().getName(), r.partition(), r.value()));
-        });
+        });*/
+        Cache<String, String> cache = new KafkaCache<>(Serdes.String(), Serdes.String(), null);
+
 
         System.in.read();
 
-        consumerService.close();
+        System.out.println("Get value:" + cache.get("key1"));
+
+        cache.close();
+
+        //consumerService.close();
 
         //myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
 

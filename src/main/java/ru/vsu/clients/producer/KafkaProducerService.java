@@ -21,7 +21,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
     //private final Queue<ProducerRecord<K, V>> queue;
     private final SendStrategy<K, V> sendStrategy;
     private final QueueStorageStrategy<K, V> queueStorageStrategy;
-    private final OriginalProducerFactory<K, V> originalProducerFactory;
+    private final OriginalProducerFactory originalProducerFactory;
     private volatile boolean isRunning;
     private volatile boolean isReconfiguring;
     private volatile Producer<K, V> producer;
@@ -29,7 +29,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
 
 
     public KafkaProducerService(
-            OriginalProducerFactory<K, V> originalProducerFactory,
+            OriginalProducerFactory originalProducerFactory,
             Map<String, Object> configs,
             SendStrategy<K, V> sendStrategy,
             QueueStorageStrategy<K, V> queueStorageStrategy) {
@@ -45,7 +45,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
     }
 
     public KafkaProducerService(
-            OriginalProducerFactory<K, V> originalProducerFactory,
+            OriginalProducerFactory originalProducerFactory,
             Properties properties,
             SendStrategy<K, V> sendStrategy,
             QueueStorageStrategy<K, V> queueStorageStrategy) {

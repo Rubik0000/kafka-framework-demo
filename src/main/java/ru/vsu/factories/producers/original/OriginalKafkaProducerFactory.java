@@ -7,15 +7,15 @@ import ru.vsu.utils.Utils;
 import java.util.Map;
 import java.util.Properties;
 
-public class OriginalKafkaProducerFactory<K, V> implements OriginalProducerFactory<K, V> {
+public class OriginalKafkaProducerFactory implements OriginalProducerFactory {
 
     @Override
-    public Producer<K, V> createProducer(Map<String, Object> configs) {
+    public <K, V> Producer<K, V> createProducer(Map<String, Object> configs) {
         return new KafkaProducer<>(configs);
     }
 
     @Override
-    public Producer<K, V> createProducer(Properties properties) {
+    public <K, V> Producer<K, V> createProducer(Properties properties) {
         return new KafkaProducer<>(properties);
     }
 }

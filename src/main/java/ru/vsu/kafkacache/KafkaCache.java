@@ -9,8 +9,8 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Serde;
 import ru.vsu.clients.consumer.ConsumerService;
-import ru.vsu.clients.consumer.factories.ConsumerServiceFactory;
-import ru.vsu.clients.consumer.factories.KafkaConsumerServiceFactory;
+import ru.vsu.factories.consumers.consumerservice.ConsumerServiceFactory;
+import ru.vsu.factories.consumers.consumerservice.KafkaConsumerServiceFactory;
 import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.factories.producers.original.OriginalProducerFactory;
 

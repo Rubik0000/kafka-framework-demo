@@ -1,4 +1,4 @@
-package ru.vsu.clients.consumer.factories;
+package ru.vsu.factories.consumers.consumerservice;
 
 import ru.vsu.clients.consumer.ConsumerService;
 import ru.vsu.clients.consumer.PartitionConsumerService;

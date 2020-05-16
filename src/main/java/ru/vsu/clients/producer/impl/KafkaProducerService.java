@@ -1,30 +1,37 @@
-package ru.vsu.clients.producer;
+package ru.vsu.clients.producer.impl;
 
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.utils.KafkaThread;
+import ru.vsu.clients.producer.api.BatchCallback;
+import ru.vsu.clients.producer.api.ProducerService;
 import ru.vsu.configurationservices.ConfigurationListener;
 import ru.vsu.factories.producers.original.OriginalProducerFactory;
 import ru.vsu.strategies.send.SendStrategy;
+import ru.vsu.strategies.send.exception.ProducerIsNeededToRecreate;
 import ru.vsu.strategies.storage.QueueStorageStrategy;
 import ru.vsu.utils.Utils;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 public class KafkaProducerService<K, V> implements ProducerService<K, V>, ConfigurationListener {
 
-    //private final Queue<ProducerRecord<K, V>> queue;
+    private static final BatchCallback BATCH_CALLBACK_MOCK = (metadata, exception, numberInBatch, batchCount) -> { };
+
+
     private final SendStrategy<K, V> sendStrategy;
     private final QueueStorageStrategy<K, V> queueStorageStrategy;
     private final OriginalProducerFactory originalProducerFactory;
+    private final Object locker = new Object();
     private volatile boolean isRunning;
     private volatile boolean isReconfiguring;
     private volatile Producer<K, V> producer;
+    private Map<String, Object> configs;
     private Thread senderThread;
 
 
@@ -34,6 +41,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
             SendStrategy<K, V> sendStrategy,
             QueueStorageStrategy<K, V> queueStorageStrategy) {
         this.originalProducerFactory = originalProducerFactory;
+        this.configs = configs;
         this.producer = originalProducerFactory.createProducer(configs);
         this.isRunning = true;
         this.isReconfiguring = false;
@@ -54,15 +62,28 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
 
 
     @Override
-    public void send(ProducerRecord<K, V> record) {
-        send(Collections.singletonList(record));
+    public void send(ProducerRecord<K, V> record, Callback callback) {
+        send(
+                Collections.singletonList(record),
+                callback == null
+                        ? BATCH_CALLBACK_MOCK
+                        : (metadata, exception, numberInBatch, batchCount) -> callback.onCompletion(metadata, exception)
+        );
     }
 
     @Override
-    public void send(Collection<ProducerRecord<K, V>> producerRecords) {
+    public void send(Collection<ProducerRecord<K, V>> producerRecords, BatchCallback callback) {
         if (isRunning) {
-            queueStorageStrategy.add(producerRecords);
-            //queue.addAll(producerRecords);
+            int batchSize = producerRecords.size();
+            List<ProducerRecord<K, V>> oldRecords = new ArrayList<>(producerRecords);
+            Collection<ProducerRecord<K, V>> newRecords = new ArrayList<>();
+            for (int i = 0; i < batchSize; ++i) {
+                newRecords.add(new ProducerRecordWithCallback<>(
+                        oldRecords.get(i),
+                        new BatchCallbackWrapper(i, batchSize, callback == null ? BATCH_CALLBACK_MOCK : callback)
+                ));
+            }
+            queueStorageStrategy.add(newRecords);
         }
     }
 
@@ -100,29 +121,30 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
 
     @Override
     public void configure(Map<String, Object> configs) {
-        isReconfiguring = true;
-        producer.close();
-        producer = originalProducerFactory.createProducer(configs);
-        System.out.println("Producer has been reconfigured with " + configs);
-        isReconfiguring = false;
+        synchronized (locker) {
+            isReconfiguring = true;
+            producer.close();
+            producer = originalProducerFactory.createProducer(configs);
+            System.out.println("Producer has been reconfigured with " + configs);
+            isReconfiguring = false;
+        }
     }
 
     protected void execute() {
-        try {
-            while (isRunning || !queueStorageStrategy.isEmpty()) {
-                Collection<ProducerRecord<K, V>> records = queueStorageStrategy.get();
-                if (!records.isEmpty() && !isReconfiguring) {
-                    try {
-                        sendStrategy.send(producer, records);
-                        queueStorageStrategy.getAndRemove();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    }
+        while (isRunning || !queueStorageStrategy.isEmpty()) {
+            Collection<ProducerRecord<K, V>> records = queueStorageStrategy.get();
+            if (!records.isEmpty() && !isReconfiguring) {
+                try {
+                    sendStrategy.send(producer, records, (producerRecord, metadata, exception) -> {
+                        ProducerRecordWithCallback<K, V> producerRecordWithCallback = (ProducerRecordWithCallback<K, V>) producerRecord;
+                        producerRecordWithCallback.callback().onCompletion(metadata, exception);
+                    });
+                    queueStorageStrategy.getAndRemove();
+                } catch (ProducerIsNeededToRecreate producerIsNeededToRecreate) {
+                    producerIsNeededToRecreate.printStackTrace();
+                    configure(configs);
                 }
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
         }
     }
 }

@@ -1,15 +1,16 @@
 package ru.vsu;
 
+import com.sun.tools.javac.util.List;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.*;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import ru.vsu.clients.consumer.PartitionConsumerService;
-import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
-import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
-import ru.vsu.kafkacache.Cache;
-import ru.vsu.kafkacache.KafkaCache;
+import ru.vsu.clients.producer.impl.KafkaProducerService;
+import ru.vsu.dao.RocksDbDao;
+import ru.vsu.dao.serialization.serializers.JsonByteSerializer;
+import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
+import ru.vsu.strategies.send.SimpleSendStrategy;
+import ru.vsu.strategies.storage.StoreByOneQueueStorageStrategy;
 
 import java.util.Properties;
 import java.util.UUID;
@@ -36,15 +37,30 @@ public class Main {
         //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
         //ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
-        //RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
+        RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
 
 
-        /*KafkaProducerService<String, String> myProducer = new KafkaProducerService<>(
-                new OriginalKafkaProducerFactory<>(),
+        KafkaProducerService<String, String> myProducer = new KafkaProducerService<>(
+                new OriginalKafkaProducerFactory(),
                 producerProperties,
                 new SimpleSendStrategy<>(),
-                new PersistentQueueStorageStrategy<>(rocksDbDao)
-        );*/
+                new StoreByOneQueueStorageStrategy<>()
+        );
+
+        myProducer.send(List.of(
+                new ProducerRecord<>("demo", "test msg 1"),
+                new ProducerRecord<>("demo", "test msg 2")),
+                (metadata, exception, numberInBatch, batchCount) -> {
+                        if (exception != null) {
+                            exception.printStackTrace();
+                        }
+                        System.out.println("Send record " + numberInBatch + " from " + batchCount);
+                });
+
+        System.in.read();
+
+        myProducer.close();
+        rocksDbDao.close();
        /* KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
         long start = System.currentTimeMillis();
         kafkaProducer.send(new ProducerRecord<>("demo", "test msg"), (metadata, exception) -> {
@@ -63,14 +79,7 @@ public class Main {
             System.out.println(String.format("Thread: %s, Partition: %d, Value: %s",
                     Thread.currentThread().getName(), r.partition(), r.value()));
         });*/
-        Cache<String, String> cache = new KafkaCache<>(Serdes.String(), Serdes.String(), null);
 
-
-        System.in.read();
-
-        System.out.println("Get value:" + cache.get("key1"));
-
-        cache.close();
 
         //consumerService.close();
 

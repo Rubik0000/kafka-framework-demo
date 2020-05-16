@@ -1,0 +1,19 @@
+@startuml
+skinparam shadowing false
+
+interface ProducerService
+interface SendStrategy
+interface QueueStorageStrategy
+
+ProducerService <|.. KafkaProducerService
+KafkaProducerService o--left- SendStrategy
+KafkaProducerService o--right- QueueStorageStrategy
+
+SendStrategy <|..down- SimpleSendStrategy
+SendStrategy <|..up- TransactionSendStrategy
+
+QueueStorageStrategy <|..up- PersistentQueueStorageStrategy
+QueueStorageStrategy <|..down- SimpleQueueStorageStrategy
+
+
+@enduml

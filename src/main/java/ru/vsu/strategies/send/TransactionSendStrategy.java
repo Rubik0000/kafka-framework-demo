@@ -9,11 +9,13 @@ import java.util.Collection;
 public class TransactionSendStrategy<K, V> implements SendStrategy<K, V> {
 
     @Override
-    public void send(Producer<K, V> kafkaProducer, Collection<ProducerRecord<K, V>> producerRecords) {
+    public void send(Producer<K, V> kafkaProducer, Collection<ProducerRecord<K, V>> producerRecords, SendStrategyCallback<K, V> callback) {
         try {
             kafkaProducer.beginTransaction();
             for (ProducerRecord<K, V> record : producerRecords) {
-                kafkaProducer.send(record);
+                kafkaProducer.send(record, (metadata, exception) -> {
+                    callback.onCompletion(record,  metadata, exception);
+                });
             }
             kafkaProducer.commitTransaction();
         } catch (KafkaException e) {

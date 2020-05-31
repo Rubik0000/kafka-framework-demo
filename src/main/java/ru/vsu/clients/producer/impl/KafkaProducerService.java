@@ -5,11 +5,10 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.utils.KafkaThread;
 import ru.vsu.clients.producer.api.BatchCallback;
 import ru.vsu.clients.producer.api.ProducerService;
-import ru.vsu.configurationservices.ConfigurationListener;
+import ru.vsu.configurationservices.api.ConfigurationListener;
 import ru.vsu.factories.producers.original.OriginalProducerFactory;
 import ru.vsu.strategies.send.SendStrategy;
 import ru.vsu.strategies.send.exception.ProducerIsNeededToRecreate;
@@ -46,7 +45,6 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
         this.isRunning = true;
         this.isReconfiguring = false;
         this.queueStorageStrategy = queueStorageStrategy;
-        //this.queue = new LinkedBlockingDeque<>();
         this.sendStrategy = sendStrategy;
         senderThread = new KafkaThread("fuck", this::execute, true);
         senderThread.start();
@@ -88,8 +86,13 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
     }
 
     @Override
-    public List<PartitionInfo> partitionsFor(String topic) {
-        return producer.partitionsFor(topic);
+    public void send(ProducerRecord<K, V> record) {
+        send(record, null);
+    }
+
+    @Override
+    public void send(Collection<ProducerRecord<K, V>> producerRecords) {
+        send(producerRecords, null);
     }
 
     @Override
@@ -130,7 +133,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
         }
     }
 
-    protected void execute() {
+    private void execute() {
         while (isRunning || !queueStorageStrategy.isEmpty()) {
             Collection<ProducerRecord<K, V>> records = queueStorageStrategy.get();
             if (!records.isEmpty() && !isReconfiguring) {

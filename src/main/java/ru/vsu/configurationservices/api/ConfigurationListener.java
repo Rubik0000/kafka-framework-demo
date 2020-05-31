@@ -1,4 +1,4 @@
-package ru.vsu.configurationservices;
+package ru.vsu.configurationservices.api;
 
 import java.util.Map;
 

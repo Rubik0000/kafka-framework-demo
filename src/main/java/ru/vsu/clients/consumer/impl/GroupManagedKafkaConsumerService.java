@@ -40,13 +40,13 @@ public class GroupManagedKafkaConsumerService<K, V> extends AbstractConsumerServ
 
 
     @Override
-    public void subscribe(String topic, int numberOfPar, RecordListener<K, V> recordListener) {
+    public void subscribe(String topic, int levelOfPar, RecordListener<K, V> recordListener) {
         if (consumers.get(topic) != null) {
             consumers.get(topic).forEach(AbstractConsumerThread::close);
         }
         consumers.put(topic, new ArrayList<>());
         List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
-        for (int i = 0; i < numberOfPar; ++i) {
+        for (int i = 0; i < levelOfPar; ++i) {
             AbstractConsumerThread<K, V> consumerThread = new GroupManagedConsumerThread<>(
                     this,
                     topic,
@@ -59,8 +59,31 @@ public class GroupManagedKafkaConsumerService<K, V> extends AbstractConsumerServ
     }
 
     @Override
+    public void unsubscribe(String topic, RecordListener<K, V> recordListener) {
+        List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
+        if (consumerThreads != null) {
+            Iterator<AbstractConsumerThread<K, V>> iterator = consumerThreads.iterator();
+            while (iterator.hasNext()) {
+                AbstractConsumerThread<K, V> consumerThread = iterator.next();
+                if (consumerThread.getListener().equals(recordListener)) {
+                    consumerThread.close();
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    @Override
+    public void unsubscribe(String topic) {
+        List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
+        if (consumerThreads != null) {
+            consumerThreads.forEach(AbstractConsumerThread::close);
+        }
+    }
+
+    @Override
     public void close() {
-        consumers.forEach((k, v) -> v.forEach(AbstractConsumerThread::close));
+        consumers.forEach((k, v) -> unsubscribe(k));
     }
 
     @Override

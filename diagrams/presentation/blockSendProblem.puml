@@ -1,0 +1,12 @@
+@startuml
+
+skinparam shadowing false
+
+Application -> Producer : сообщения
+Producer ->x "Kafka Cluster" : запрос метаданных
+...таймаут по умолчанию 60000 мс...
+note left of Application: метод блокирует\nпоток выполнения
+Producer --> Application : TimeoutException
+
+
+@enduml

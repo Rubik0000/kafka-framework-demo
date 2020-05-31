@@ -1,11 +1,11 @@
-package ru.vsu.configurationservices.zookeeper;
+package ru.vsu.configurationservices.impl;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.CuratorWatcher;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import ru.vsu.configurationservices.ConfigurationListener;
-import ru.vsu.configurationservices.ConfigurationService;
+import ru.vsu.configurationservices.api.ConfigurationListener;
+import ru.vsu.configurationservices.api.ConfigurationService;
 import ru.vsu.dao.serialization.deserializers.ByteDeserializer;
 
 import java.util.HashSet;

@@ -1,6 +1,8 @@
-package ru.vsu.configurationservices;
+package ru.vsu.configurationservices.impl;
 
 import ru.vsu.clients.consumer.ConsumerService;
+import ru.vsu.configurationservices.api.ConfigurationListener;
+import ru.vsu.configurationservices.api.ConfigurationService;
 
 import java.util.Map;
 

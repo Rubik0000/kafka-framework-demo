@@ -12,7 +12,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
 
-public final class PersistentQueueStorageStrategy<K, V> implements QueueStorageStrategy<K, V> {
+public class PersistentQueueStorageStrategy<K, V> implements QueueStorageStrategy<K, V> {
 
     private final StoredProducerRecordsDao producerRecordsDao;
     private final Queue<String> queue;

@@ -27,6 +27,8 @@ public class PartitionManagedKafkaConsumerService<K, V> extends AbstractConsumer
     private Map<String, Object> consumerConfig;*/
     private Map<String, Pair<ExecutorService, AbstractConsumerThread<K, V>>> consumers;
     private AdminClient adminClient;
+    private Map<Integer, ExecutorService> executorServices;
+
 
     public PartitionManagedKafkaConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Map<String, Object> config) {
         super(consumerFactory, config);
@@ -70,7 +72,7 @@ public class PartitionManagedKafkaConsumerService<K, V> extends AbstractConsumer
     }
 
     @Override
-    public void subscribe(String topic, int numberOfPar, RecordListener<K, V> recordListener) {
+    public void subscribe(String topic, int levelOfPar, RecordListener<K, V> recordListener) {
         adminClient.describeTopics(Collections.singletonList(topic)).all().whenComplete((stringTopicDescriptionMap, throwable) -> {
             if (throwable != null) {
                 throw new RuntimeException(throwable);
@@ -80,8 +82,18 @@ public class PartitionManagedKafkaConsumerService<K, V> extends AbstractConsumer
             for (int i = 0; i < partitionsArray.length; ++i) {
                 partitionsArray[i] = partitions.get(i).partition();
             }
-            subscribe(topic, partitionsArray, numberOfPar, recordListener);
+            subscribe(topic, partitionsArray, levelOfPar, recordListener);
         });
+    }
+
+    @Override
+    public void unsubscribe(String topic, RecordListener<K, V> recordListener) {
+
+    }
+
+    @Override
+    public void unsubscribe(String topic) {
+
     }
 
     @Override

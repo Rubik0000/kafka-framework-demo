@@ -14,6 +14,10 @@ public interface ProducerService<K, V> extends AutoCloseable {
 
     void send(Collection<ProducerRecord<K, V>> records, BatchCallback callback);
 
+    void send(ProducerRecord<K, V> record);
+
+    void send(Collection<ProducerRecord<K, V>> records);
+
     Map<MetricName, ? extends Metric> metrics();
 
     void close(long timeout);

@@ -1,10 +1,9 @@
 package ru.vsu.clients.consumer.impl;
 
-import ru.vsu.configurationservices.ConfigurationListener;
+import ru.vsu.configurationservices.api.ConfigurationListener;
 import ru.vsu.factories.consumers.original.OriginalConsumerFactory;
 import ru.vsu.utils.Utils;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;

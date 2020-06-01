@@ -1,0 +1,22 @@
+@startuml
+
+skinparam shadowing false
+
+() IProducerService
+() IRecordsDataAccess
+
+IProducerService -right-- [ProducerService]
+IRecordsDataAccess -left- [RocksDb]
+
+[ProducerService] ..> [SendThread] : start/stop
+[ProducerService] ...> [MessageQueue] : add records
+[MessageQueue] ..> IRecordsDataAccess : store records
+[SendThread] ..> [MessageQueue]  : get records
+
+database KafkaCluster {
+    [Broker]
+}
+
+[SendThread] ..> [Broker] : send
+
+@enduml

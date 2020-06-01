@@ -1,0 +1,22 @@
+@startuml
+
+skinparam shadowing false
+
+() IConsumerService
+() IConfigurationService
+
+IConsumerService - [ConsumerService]
+IConfigurationService - [KafkaConfigurationService]
+
+database KafkaCluster {
+    [ConfigurationTopic]
+}
+
+
+[KafkaConfigurationService] ..> IConsumerService : monitor\nconfiguration
+[KafkaConfigurationService] ..> [Listeners] : notify
+[ConsumerService] ..> [ConfigurationTopic] : poll data
+
+
+
+@enduml

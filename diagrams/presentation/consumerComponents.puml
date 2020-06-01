@@ -1,0 +1,19 @@
+@startuml
+
+skinparam shadowing false
+
+() IConsumerService
+
+IConsumerService - [ConsumerService]
+[ConsumerService] ..> [PollThreads] : start/stop
+[PollThreads] -left..> [Listeners] : process records
+
+database KafkaCluster {
+    [Broker]
+}
+
+[PollThreads] ..> [Broker] : poll records
+
+
+
+@enduml

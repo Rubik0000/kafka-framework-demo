@@ -23,7 +23,7 @@ public class KafkaConfigurationService implements ConfigurationService {
 
     @Override
     public void registerListener(String configName, ConfigurationListener configurationListener) {
-
+        consumerService.subscribe(configName, 1, null);
     }
 
     @Override

@@ -2,12 +2,19 @@ package ru.vsu;
 
 import com.sun.tools.javac.util.List;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import ru.vsu.clients.consumer.ConsumerService;
+import ru.vsu.clients.consumer.PartitionConsumerService;
+import ru.vsu.clients.consumer.RecordListener;
+import ru.vsu.clients.consumer.impl.GroupManagedKafkaConsumerService;
+import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
 import ru.vsu.clients.producer.impl.KafkaProducerService;
 import ru.vsu.dao.RocksDbDao;
 import ru.vsu.dao.serialization.serializers.JsonByteSerializer;
+import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
 import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.strategies.send.SimpleSendStrategy;
 import ru.vsu.strategies.storage.StoreByOneQueueStorageStrategy;
@@ -37,7 +44,7 @@ public class Main {
         //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
 
         //ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
-        RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
+        /*RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
 
 
         KafkaProducerService<String, String> myProducer = new KafkaProducerService<>(
@@ -60,16 +67,24 @@ public class Main {
         System.in.read();
 
         myProducer.close();
-        rocksDbDao.close();
-       /* KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
-        long start = System.currentTimeMillis();
-        kafkaProducer.send(new ProducerRecord<>("demo", "test msg"), (metadata, exception) -> {
-            exception.printStackTrace();
-            System.out.println("Spend time :" + (System.currentTimeMillis() - start));
+        rocksDbDao.close();*/
+
+        PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<String, String>(
+                new OriginalKafkaConsumerFactory<>(),
+                consumerProperties
+        );
+
+        consumerService.subscribe("test", new int[]{0, 1}, 3, record -> {
+            System.out.println(Thread.currentThread().getName() + "; value " + record.value() + "; partition " + record.partition());
         });
-        System.out.println("here");
+
         System.in.read();
-        kafkaProducer.close(Duration.ofMillis(10000));*/
+
+        consumerService.unsubscribe("test");
+
+        System.in.read();
+
+        consumerService.close();
         /*PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
                 new OriginalKafkaConsumerFactory<>(),
                 consumerProperties

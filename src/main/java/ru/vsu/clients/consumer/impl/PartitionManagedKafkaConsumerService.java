@@ -1,78 +1,76 @@
 package ru.vsu.clients.consumer.impl;
 
-import org.apache.commons.lang3.tuple.Pair;
+import com.google.common.collect.Lists;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
-import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
-import ru.vsu.clients.consumer.RecordListener;
+import org.apache.kafka.common.utils.KafkaThread;
 import ru.vsu.clients.consumer.PartitionConsumerService;
-import ru.vsu.clients.consumer.impl.consumerthreads.AbstractConsumerThread;
-import ru.vsu.clients.consumer.impl.consumerthreads.PartitionManagedConsumerThread;
+import ru.vsu.clients.consumer.RecordListener;
+import ru.vsu.clients.consumer.impl.consumerthreads.PartitionManagedConsumerTask;
 import ru.vsu.factories.consumers.original.OriginalConsumerFactory;
-import ru.vsu.utils.Utils;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.function.IntFunction;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class PartitionManagedKafkaConsumerService<K, V> extends AbstractConsumerService<K, V> implements PartitionConsumerService<K, V> {
 
-    /*private OriginalConsumerFactory<K, V> consumerFactory;
-    private Map<String, Object> consumerConfig;*/
-    private Map<String, Pair<ExecutorService, AbstractConsumerThread<K, V>>> consumers;
-    private AdminClient adminClient;
-    private Map<Integer, ExecutorService> executorServices;
+    private final Object locker = new Object();
+    private final Thread pollThread = new KafkaThread("consumer-thread", this::execute, true);;
+    private final AdminClient adminClient = KafkaAdminClient.create(getConsumerConfig());
+    private final Map<String, List<PartitionManagedConsumerTask<K, V>>> tasks = new ConcurrentHashMap<>();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(6);
+    private volatile boolean isRunning = true;
+    private volatile boolean isReconfiguring = false;
+    private Consumer<K, V> consumer = getConsumerFactory().createConsumer(getConsumerConfig());
 
 
     public PartitionManagedKafkaConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Map<String, Object> config) {
         super(consumerFactory, config);
-        adminClient = KafkaAdminClient.create(config);
-        consumers = new ConcurrentHashMap<>();
+        pollThread.start();
     }
 
     public PartitionManagedKafkaConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Properties properties) {
         super(consumerFactory, properties);
-        adminClient = KafkaAdminClient.create(properties);
-        consumers = new ConcurrentHashMap<>();
+        pollThread.start();
     }
-
-    /*public PartitionManagedConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Map<String, Object> config) {
-        this.consumerFactory = consumerFactory;
-        this.consumerConfig = new ConcurrentHashMap<>(config);
-        consumers = new ConcurrentHashMap<>();
-    }
-
-    public PartitionManagedConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Properties properties) {
-        this(consumerFactory, Utils.propertiesToMap(properties));
-    }*/
 
 
     @Override
     public void subscribe(String topic, int[] partitions, int numberOfPar, RecordListener<K, V> recordListener) {
-        if (consumers.get(topic) != null) {
-            consumers.get(topic).getKey().shutdown();
-            consumers.get(topic).getValue().close();
-        }
-        ExecutorService executorService = Executors.newFixedThreadPool(numberOfPar);
-        AbstractConsumerThread<K, V> consumerThread = new PartitionManagedConsumerThread<>(
-                this,
-                executorService,
-                topic,
+        throwIfTopicIsNull(topic);
+        throwIfLevelOfParallelismIfLessThanOne(numberOfPar);
+        throwIfRecordListenerIsNull(recordListener);
+        throwIfPartitionsAreNotPresent(partitions);
+        tasks.putIfAbsent(topic, new CopyOnWriteArrayList<>());
+        List<PartitionManagedConsumerTask<K, V>> topicTasks = tasks.get(topic);
+        PartitionManagedConsumerTask<K, V> consumerTask = new PartitionManagedConsumerTask<>(
                 partitions,
-                recordListener,
-                String.format("thread-%s", topic));
-        consumers.put(topic, Pair.of(executorService, consumerThread));
-        consumerThread.start();
+                numberOfPar,
+                recordListener
+        );
+        topicTasks.add(consumerTask);
+        Set<TopicPartition> assignment = new HashSet<>(consumer.assignment());
+        for (int partition : partitions) {
+            assignment.add(new TopicPartition(topic, partition));
+        }
+        synchronized (locker) {
+            consumer.assign(assignment);
+        }
     }
 
     @Override
     public void subscribe(String topic, int levelOfPar, RecordListener<K, V> recordListener) {
+        throwIfTopicIsNull(topic);
         adminClient.describeTopics(Collections.singletonList(topic)).all().whenComplete((stringTopicDescriptionMap, throwable) -> {
             if (throwable != null) {
                 throw new RuntimeException(throwable);
@@ -88,80 +86,78 @@ public class PartitionManagedKafkaConsumerService<K, V> extends AbstractConsumer
 
     @Override
     public void unsubscribe(String topic, RecordListener<K, V> recordListener) {
-
+        throwIfTopicIsNull(topic);
+        throwIfRecordListenerIsNull(recordListener);
+        List<PartitionManagedConsumerTask<K, V>> tasksToStop = tasks.get(topic)
+                .stream()
+                .filter(task -> task.getListener().equals(recordListener))
+                .collect(Collectors.toList());
+        tasks.get(topic).removeAll(tasksToStop);
     }
 
     @Override
     public void unsubscribe(String topic) {
-
+        throwIfTopicIsNull(topic);
+        tasks.remove(topic);
     }
 
     @Override
     public void close() throws Exception {
-        consumers.forEach((k, v) -> {
-            v.getKey().shutdown();
-            v.getValue().close();
-        });
+        try {
+            isRunning = false;
+            pollThread.join(10000);
+            if (pollThread.isAlive()) {
+                pollThread.interrupt();
+                System.out.println("Interrupt");
+            }
+        } finally {
+            tasks.clear();
+            executorService.shutdown();
+        }
     }
 
     @Override
     protected void configure() {
-        consumers.forEach((k, v) -> v.getValue().rerun());
+        synchronized (locker) {
+            isReconfiguring = true;
+            consumer.close();
+            consumer = getConsumerFactory().createConsumer(getConsumerConfig());
+            System.out.println("Consumer has been reconfigured with " + getConsumerConfig());
+            isReconfiguring = false;
+        }
     }
 
-    /*class ConsumerThread extends Thread implements AutoCloseable {
-
-        private final RecordListener<K, V> listener;
-        private final String topic;
-        private int[] partitions;
-        private volatile boolean isStopped = false;
-        private ExecutorService executorService;
-
-
-        public ConsumerThread(String topic, int[] partitions, int numberOfPar, RecordListener<K, V> recordListener, String threadName) {
-            setName(threadName);
-            this.topic = topic;
-            this.listener = recordListener;
-            this.partitions = partitions;
-            executorService = new ThreadPoolExecutor(numberOfPar, numberOfPar, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1000));
-        }
-
-        @Override
-        public void run() {
-            try (Consumer<K, V> kafkaConsumer = getConsumerFactory().createConsumer(getConsumerConfig())) {
-                ArrayList<TopicPartition> topicPartitions = new ArrayList<>();
-                for (int i = 0; i < partitions.length; ++i) {
-                    topicPartitions.add(new TopicPartition(topic, i));
-                }
-                kafkaConsumer.assign(topicPartitions);
-                while (!isStopped) {
-                    ConsumerRecords<K, V> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(1000));
-                    if (!consumerRecords.isEmpty()) {
-                        System.out.println("Consumer thread: " + getName());
-                        consumerRecords.forEach(record -> executorService.submit(() -> listener.listen(record)));
-                        kafkaConsumer.commitSync();
-                    }
-                }
-                executorService.shutdown();
-            }
-        }
-
-        @Override
-        public void close() {
-            isStopped = true;
-        }
-
-        public void rerun() {
-            close();
-            while (isAlive()) {
+    private void execute() {
+        while (isRunning) {
+            if (isReconfiguring || consumer.assignment().isEmpty()) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
                 }
+                continue;
             }
-            isStopped = false;
-            start();
+            ConsumerRecords<K, V> consumerRecords;
+            synchronized (locker) {
+                consumerRecords = consumer.poll(Duration.ofMillis(1000));
+            }
+            if (consumerRecords.isEmpty()) {
+                continue;
+            }
+            tasks.forEach((key, value) -> {
+                Iterable<ConsumerRecord<K, V>> records = consumerRecords.records(key);
+                value.forEach(task -> {
+                    Lists.partition(Lists.newArrayList(records), task.getLevelOfPar()).forEach(part -> {
+                        executorService.submit(() -> task.run(part));
+                    });
+                });
+            });
         }
-    }*/
+    }
+
+    protected void throwIfPartitionsAreNotPresent(int[] partitions) {
+        if (partitions == null || partitions.length == 0) {
+            throw new IllegalArgumentException("Partitions are not present");
+        }
+    }
 }

@@ -1,23 +1,24 @@
 package ru.vsu.clients.consumer.impl;
 
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import ru.vsu.clients.consumer.RecordListener;
 import ru.vsu.clients.consumer.ConsumerService;
-import ru.vsu.clients.consumer.impl.consumerthreads.AbstractConsumerThread;
-import ru.vsu.clients.consumer.impl.consumerthreads.GroupManagedConsumerThread;
+import ru.vsu.clients.consumer.RecordListener;
+import ru.vsu.clients.consumer.impl.consumerthreads.GroupManagedConsumerTask;
 import ru.vsu.factories.consumers.original.OriginalConsumerFactory;
-import ru.vsu.utils.Utils;
 
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class GroupManagedKafkaConsumerService<K, V> extends AbstractConsumerService<K, V> implements ConsumerService<K, V> {
 
-    /*private OriginalConsumerFactory<K, V> consumerFactory;
-    private Map<String, Object> consumerConfig;*/
-    private Map<String, List<AbstractConsumerThread<K, V>>> consumers;
+    private List<ScheduledFutureProxy<K, V>> tasks = new CopyOnWriteArrayList<>();
+    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
+
 
     public GroupManagedKafkaConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Map<String, Object> config) {
         super(consumerFactory, config);
@@ -28,117 +29,55 @@ public class GroupManagedKafkaConsumerService<K, V> extends AbstractConsumerServ
     }
 
 
-    /*public GroupManagedConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Map<String, Object> config) {
-        this.consumerFactory = consumerFactory;
-        this.consumerConfig = new ConcurrentHashMap<>(config);
-        consumers = new ConcurrentHashMap<>();
-    }
-
-    public GroupManagedConsumerService(OriginalConsumerFactory<K, V> consumerFactory, Properties properties) {
-        this(consumerFactory, Utils.propertiesToMap(properties));
-    }*/
-
-
     @Override
     public void subscribe(String topic, int levelOfPar, RecordListener<K, V> recordListener) {
-        if (consumers.get(topic) != null) {
-            consumers.get(topic).forEach(AbstractConsumerThread::close);
-        }
-        consumers.put(topic, new ArrayList<>());
-        List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
+        throwIfTopicIsNull(topic);
+        throwIfLevelOfParallelismIfLessThanOne(levelOfPar);
+        throwIfRecordListenerIsNull(recordListener);
         for (int i = 0; i < levelOfPar; ++i) {
-            AbstractConsumerThread<K, V> consumerThread = new GroupManagedConsumerThread<>(
+            GroupManagedConsumerTask<K, V> consumerThread = new GroupManagedConsumerTask<>(
                     this,
                     topic,
                     recordListener,
                     String.format("thread-%s-%d", topic, i)
             );
-            consumerThreads.add(consumerThread);
-            consumerThread.start();
+            ScheduledFutureProxy<K, V> proxy = new ScheduledFutureProxy<>(
+                    executorService.scheduleWithFixedDelay(consumerThread, 0, 10, TimeUnit.MILLISECONDS),
+                    consumerThread
+            );
+            tasks.add(proxy);
         }
     }
 
     @Override
     public void unsubscribe(String topic, RecordListener<K, V> recordListener) {
-        List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
-        if (consumerThreads != null) {
-            Iterator<AbstractConsumerThread<K, V>> iterator = consumerThreads.iterator();
-            while (iterator.hasNext()) {
-                AbstractConsumerThread<K, V> consumerThread = iterator.next();
-                if (consumerThread.getListener().equals(recordListener)) {
-                    consumerThread.close();
-                    iterator.remove();
-                }
-            }
-        }
+        throwIfTopicIsNull(topic);
+        throwIfRecordListenerIsNull(recordListener);
+        List<ScheduledFutureProxy<K, V>> tasksToStop = tasks.stream()
+                .filter(task -> topic.equals(task.getConsumerTask().getTopic()) && task.getConsumerTask().getListener().equals(recordListener))
+                .collect(Collectors.toList());
+        tasksToStop.forEach(task -> task.cancel(true));
+        tasks.removeAll(tasksToStop);
     }
 
     @Override
     public void unsubscribe(String topic) {
-        List<AbstractConsumerThread<K, V>> consumerThreads = consumers.get(topic);
-        if (consumerThreads != null) {
-            consumerThreads.forEach(AbstractConsumerThread::close);
-        }
+        throwIfTopicIsNull(topic);
+        List<ScheduledFutureProxy<K, V>> tasksToStop = tasks.stream()
+                .filter(task -> topic.equals(task.getConsumerTask().getTopic()))
+                .collect(Collectors.toList());
+        tasksToStop.forEach(task -> task.cancel(true));
+        tasks.removeAll(tasksToStop);
     }
 
     @Override
     public void close() {
-        consumers.forEach((k, v) -> unsubscribe(k));
+        tasks.forEach(task -> task.cancel(true));
+        executorService.shutdown();
     }
 
     @Override
     protected void configure() {
-        consumers.keySet().forEach(topic -> {
-
-        });
-        consumers.forEach((s, consumerThreads) -> consumerThreads.forEach(AbstractConsumerThread::rerun));
+        tasks.forEach(s -> s.getConsumerTask().rerun());
     }
-
-
-    /*class ConsumerThread extends Thread implements AutoCloseable {
-
-        private final RecordListener<K, V> listener;
-        private final String topic;
-        private volatile boolean isStopped = false;
-
-
-        public ConsumerThread(String topic, RecordListener<K, V> recordListener, String threadName) {
-            setName(threadName);
-            this.topic = topic;
-            this.listener = recordListener;
-        }
-
-        @Override
-        public void run() {
-            try (Consumer<K, V> kafkaConsumer = getConsumerFactory().createConsumer(getConsumerConfig())) {
-                kafkaConsumer.subscribe(Collections.singletonList(topic));
-                while (!isStopped) {
-                    ConsumerRecords<K, V> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(1000));
-                    if (!consumerRecords.isEmpty()) {
-                        System.out.println("Consumer thread: " + getName());
-                        consumerRecords.forEach(listener::listen);
-                        kafkaConsumer.commitSync();
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            isStopped = true;
-        }
-
-        public void rerun() {
-            close();
-            while (isAlive()) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-            isStopped = false;
-            start();
-        }
-    }*/
 }

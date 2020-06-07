@@ -46,7 +46,7 @@ public class KafkaProducerService<K, V> implements ProducerService<K, V>, Config
         this.isReconfiguring = false;
         this.queueStorageStrategy = queueStorageStrategy;
         this.sendStrategy = sendStrategy;
-        senderThread = new KafkaThread("fuck", this::execute, true);
+        senderThread = new KafkaThread("producer-thread", this::execute, true);
         senderThread.start();
     }
 

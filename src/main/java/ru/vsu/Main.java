@@ -12,6 +12,9 @@ import ru.vsu.clients.consumer.RecordListener;
 import ru.vsu.clients.consumer.impl.GroupManagedKafkaConsumerService;
 import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
 import ru.vsu.clients.producer.impl.KafkaProducerService;
+import ru.vsu.configurationservices.api.ConfigurationListener;
+import ru.vsu.configurationservices.api.ConfigurationService;
+import ru.vsu.configurationservices.impl.KafkaConfigurationService;
 import ru.vsu.dao.RocksDbDao;
 import ru.vsu.dao.serialization.serializers.JsonByteSerializer;
 import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
@@ -19,6 +22,7 @@ import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.strategies.send.SimpleSendStrategy;
 import ru.vsu.strategies.storage.StoreByOneQueueStorageStrategy;
 
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -69,22 +73,27 @@ public class Main {
         myProducer.close();
         rocksDbDao.close();*/
 
-        PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<String, String>(
+        ConsumerService<String, String> consumerService = new GroupManagedKafkaConsumerService<String, String>(
                 new OriginalKafkaConsumerFactory<>(),
                 consumerProperties
         );
 
-        consumerService.subscribe("test", new int[]{0, 1}, 3, record -> {
+        /*consumerService.subscribe("test", new int[]{0, 1}, 3, record -> {
             System.out.println(Thread.currentThread().getName() + "; value " + record.value() + "; partition " + record.partition());
         });
 
         System.in.read();
 
-        consumerService.unsubscribe("test");
+        consumerService.unsubscribe("test");*/
+
+        ConfigurationService KafkaConfigurationService = new KafkaConfigurationService(consumerService, "testconf");
+
 
         System.in.read();
 
-        consumerService.close();
+        System.out.println(KafkaConfigurationService.getConfiguration("1"));
+
+        KafkaConfigurationService.close();
         /*PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
                 new OriginalKafkaConsumerFactory<>(),
                 consumerProperties

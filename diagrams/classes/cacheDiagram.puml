@@ -2,15 +2,45 @@
 
 skinparam shadowing false
 
-interface Map
-interface Cache
+interface Map {
+    +get()
+    +put()
+    +remove()
+}
+interface Cache {
+    +get()
+    +put()
+    +remove()
+    +resync()
+}
 
-interface ConsumerService
-interface Producer
+interface ConsumerService {
+    +subscribe()
+    +unsubscribe()
+}
+
+interface Producer {
+    +send()
+}
+
+class KafkaCache {
+    -ConsumerService consumerService
+    -Producer producer
+    -Map localCache
+    -Serde keySerde
+    -Serde valueSerde
+    +get()
+    +put()
+    +remove()
+    +resync()
+    -listen()
+    -createConsumerService()
+    -createProducer()
+}
+
 
 Map <|--right- Cache
 Cache <|.. KafkaCache
-
 
 KafkaCache *--left- ConsumerService
 KafkaCache *--right- Producer

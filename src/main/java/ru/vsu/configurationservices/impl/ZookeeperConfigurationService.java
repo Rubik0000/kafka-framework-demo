@@ -51,6 +51,16 @@ public class ZookeeperConfigurationService implements ConfigurationService {
     }
 
     @Override
+    public void unregisterListener(String configName, ConfigurationListener configurationListener) {
+
+    }
+
+    @Override
+    public void unregisterListener(String configName) {
+
+    }
+
+    @Override
     public void close() throws Exception {
         curatorFramework.close();
     }

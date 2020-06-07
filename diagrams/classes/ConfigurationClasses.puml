@@ -1,16 +1,38 @@
 @startuml
 skinparam shadowing false
 
-interface ConfigurationListener
-interface ConfigurationService
-abstract AbstractConsumerService
+interface ConfigurationListener {
+    +configure()
+}
+
+interface ConfigurationService {
+    +getConfiguration()
+    +registerListener()
+    +unregisterListener()
+}
+
+interface ConsumerService {
+    +subscribe()
+    +unsubscribe()
+}
+
+class KafkaConfigurationService {
+    -ConsumerService consumerService
+    -Map listeners
+    -Map actualConfigs
+    +getConfiguration()
+    +registerListener()
+    +unregisterListener()
+    -listen()
+}
 
 ConfigurationService o--left- ConfigurationListener
-AbstractConsumerService -up..|> ConfigurationListener
-KafkaProducerService -down..|> ConfigurationListener
-
 KafkaConfigurationService -up..|> ConfigurationService
-ZookeeperConfigurationService -down..|> ConfigurationService
+KafkaConfigurationService *--left- ConsumerService
 
+
+'abstract AbstractConsumerService
+'AbstractConsumerService -up..|> ConfigurationListener
+'KafkaProducerService -up..|> ConfigurationListener
 
 @enduml

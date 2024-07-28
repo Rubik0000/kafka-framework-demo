@@ -22,7 +22,9 @@ public class PersistentQueueStorageStrategy<K, V> implements QueueStorageStrateg
         this.producerRecordsDao = producerRecordsDao;
         this.queue = new LinkedBlockingDeque<>();
         try {
-            producerRecordsDao.getUnsentRecords().forEach(record -> queue.add(record.getId()));
+            List<StoredProducerRecord> unsentRecords = new ArrayList<>(producerRecordsDao.getUnsentRecords());
+            unsentRecords.sort((storedProducerRecord, t1) -> (int) (storedProducerRecord.getProducerRecordPojo().getDbTimestamp() - t1.getProducerRecordPojo().getDbTimestamp()));
+            unsentRecords.forEach(record -> queue.add(record.getId()));
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -34,7 +36,7 @@ public class PersistentQueueStorageStrategy<K, V> implements QueueStorageStrateg
         for (ProducerRecord<K, V> record : producerRecords) {
             try {
                 String id = UUID.randomUUID().toString();
-                producerRecordsDao.add(new StoredProducerRecord(id, false, new ProducerRecordPojo(record)));
+                producerRecordsDao.add(new StoredProducerRecord(id, false, new ProducerRecordPojo(record, System.currentTimeMillis())));
                 queue.add(id);
             } catch (SQLException e) {
                 e.printStackTrace();

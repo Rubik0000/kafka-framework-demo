@@ -5,7 +5,6 @@ interface ConsumerService
 interface PartitionManagedConsumerService
 interface ConfigurationListener
 abstract AbstractConsumerService
-abstract AbstractConsumerThread
 
 ConsumerService <|-- PartitionManagedConsumerService
 ConsumerService <|.. GroupManagedKafkaConsumerService
@@ -15,12 +14,8 @@ AbstractConsumerService -up--|> ConfigurationListener
 GroupManagedKafkaConsumerService -left--|> AbstractConsumerService
 PartitionManagedKafkaConsumerService -right--|> AbstractConsumerService
 
-GroupManagedConsumerThread -left--|> AbstractConsumerThread
-PartitionManagedConsumerThread -right--|> AbstractConsumerThread
-
-AbstractConsumerService -up--o AbstractConsumerThread
-GroupManagedConsumerThread -down--* GroupManagedKafkaConsumerService
-PartitionManagedConsumerThread -down--* PartitionManagedKafkaConsumerService
+GroupManagedConsumerTask -down--* GroupManagedKafkaConsumerService
+PartitionManagedConsumerTask -down--* PartitionManagedKafkaConsumerService
 
 
 @enduml

@@ -11,20 +11,22 @@ import ru.vsu.clients.consumer.PartitionConsumerService;
 import ru.vsu.clients.consumer.RecordListener;
 import ru.vsu.clients.consumer.impl.GroupManagedKafkaConsumerService;
 import ru.vsu.clients.consumer.impl.PartitionManagedKafkaConsumerService;
+import ru.vsu.clients.producer.api.ProducerService;
 import ru.vsu.clients.producer.impl.KafkaProducerService;
 import ru.vsu.configurationservices.api.ConfigurationListener;
 import ru.vsu.configurationservices.api.ConfigurationService;
 import ru.vsu.configurationservices.impl.KafkaConfigurationService;
 import ru.vsu.dao.RocksDbDao;
+import ru.vsu.dao.StoredProducerRecordsDao;
 import ru.vsu.dao.serialization.serializers.JsonByteSerializer;
 import ru.vsu.factories.consumers.original.OriginalKafkaConsumerFactory;
 import ru.vsu.factories.producers.original.OriginalKafkaProducerFactory;
 import ru.vsu.strategies.send.SimpleSendStrategy;
+import ru.vsu.strategies.storage.PersistentQueueStorageStrategy;
+import ru.vsu.strategies.storage.QueueStorageStrategy;
 import ru.vsu.strategies.storage.StoreByOneQueueStorageStrategy;
 
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 
 public class Main {
 
@@ -35,8 +37,9 @@ public class Main {
         producerProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         producerProperties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
         producerProperties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
-        producerProperties.setProperty(ProducerConfig.RETRIES_CONFIG, "3");
-        producerProperties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "180000");
+        producerProperties.setProperty(ProducerConfig.MAX_BLOCK_MS_CONFIG, "5000");
+//        producerProperties.setProperty(ProducerConfig.RETRIES_CONFIG, "3");
+//        producerProperties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "180000");
 
         Properties consumerProperties = new Properties();
         consumerProperties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
@@ -45,117 +48,29 @@ public class Main {
         consumerProperties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
         consumerProperties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        //KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(producerProperties);
-
-        //ApacheDerbyDao apacheDerbyDao = new ApacheDerbyDao();
-        /*RocksDbDao rocksDbDao = new RocksDbDao(new JsonByteSerializer());
+        ArrayList<ProducerRecord<String, String>> records = new ArrayList<>(1_000_0000);
+        Collections.fill(records, new ProducerRecord<>("test_stress", "test"));
 
 
-        KafkaProducerService<String, String> myProducer = new KafkaProducerService<>(
-                new OriginalKafkaProducerFactory(),
-                producerProperties,
-                new SimpleSendStrategy<>(),
-                new StoreByOneQueueStorageStrategy<>()
-        );
-
-        myProducer.send(List.of(
-                new ProducerRecord<>("demo", "test msg 1"),
-                new ProducerRecord<>("demo", "test msg 2")),
-                (metadata, exception, numberInBatch, batchCount) -> {
-                        if (exception != null) {
-                            exception.printStackTrace();
-                        }
-                        System.out.println("Send record " + numberInBatch + " from " + batchCount);
-                });
-
-        System.in.read();
-
-        myProducer.close();
-        rocksDbDao.close();*/
-
-        ConsumerService<String, String> consumerService = new GroupManagedKafkaConsumerService<String, String>(
-                new OriginalKafkaConsumerFactory<>(),
-                consumerProperties
-        );
-
-        /*consumerService.subscribe("test", new int[]{0, 1}, 3, record -> {
-            System.out.println(Thread.currentThread().getName() + "; value " + record.value() + "; partition " + record.partition());
-        });
-
-        System.in.read();
-
-        consumerService.unsubscribe("test");*/
-
-        ConfigurationService KafkaConfigurationService = new KafkaConfigurationService(consumerService, "testconf");
-
-
-        System.in.read();
-
-        System.out.println(KafkaConfigurationService.getConfiguration("1"));
-
-        KafkaConfigurationService.close();
-        /*PartitionConsumerService<String, String> consumerService = new PartitionManagedKafkaConsumerService<>(
-                new OriginalKafkaConsumerFactory<>(),
-                consumerProperties
-        );
-
-        consumerService.subscribe("test3", new int[] {0}, 3, r -> {
-            System.out.println(String.format("Thread: %s, Partition: %d, Value: %s",
-                    Thread.currentThread().getName(), r.partition(), r.value()));
-        });*/
-
-
-        //consumerService.close();
-
-        //myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
-
-        //myProducer.close(10000);
-        //rocksDbDao.close();
-
-//        kafkaProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
-//        System.in.read();
-//        kafkaProducer.close();
-
-        //executor.submit(new Task(myProducer));
-
-        //myProducer.close(10000);
-        //executor.shutdown();
-
-        /*myProducer.close(10000);
-        apacheDerbyDao.close();*/
-
-        /*RetryPolicy retryPolicy = new RetryNTimes(3, 100);
-        CuratorFramework client = CuratorFrameworkFactory.newClient("localhost:2181", retryPolicy);
-        client.start();
-
-
-        if (client.checkExists().forPath(ZookeeperConfigurationService.CONFIG_STORAGE_PATH + "myconf") == null) {
-            client.create().creatingParentsIfNeeded().forPath(ZookeeperConfigurationService.CONFIG_STORAGE_PATH + "myconf");
-        }
-
-        ConfigurationService configurationService = new ZookeeperConfigurationService(client, new JsonDeserializer());
-        configurationService.registerListener("myconf", myProducer);
-
-
-        Random r = new Random();
-        for (int i = 0; i < 3; ++i) {
-            byte[] bytes = new ObjectMapper().writeValueAsBytes(Utils.propertiesToMap(producerProperties));
-            client.setData().forPath(ZookeeperConfigurationService.CONFIG_STORAGE_PATH + "myconf", bytes);
-            Thread.sleep(2000);
-        }
-        myProducer.send(new ProducerRecord<>("demo", LocalDateTime.now().toString()));
-
-        System.in.read();*/
-
-        //configurationService.close();
-        /*client.getData().usingWatcher(new CuratorWatcher() {
-            @Override
-            public void process(WatchedEvent event) throws Exception {
-                System.out.println("Event appears on" + event.getPath() + ":" + new String(client.getData().forPath(event.getPath())));
-                client.getData().usingWatcher(this).forPath("/testapp");
+        try (RocksDbDao dao = new RocksDbDao(new JsonByteSerializer())) {
+            //System.in.read();
+            //System.out.println("Start stress test");
+            QueueStorageStrategy<String, String> queueStorageStrategy = new PersistentQueueStorageStrategy<>(dao);
+            try (ProducerService<String, String> producerService = new KafkaProducerService<String, String>(
+                    new OriginalKafkaProducerFactory(),
+                    producerProperties,
+                    new SimpleSendStrategy<>(),
+                    queueStorageStrategy
+            )) {
+                int counter = Integer.parseInt(args[0]);
+                while (true) {
+                    String message = "message " + counter++;
+                    producerService.send(new ProducerRecord<>("demo", message));
+                    System.out.println("Send " + message);
+                    Thread.sleep(5000);
+                }
             }
-        }).forPath("/testapp");*/
-
+        }
 
     }
     /*public static void main(String[] args) {

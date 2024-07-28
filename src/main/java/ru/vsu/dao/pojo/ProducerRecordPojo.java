@@ -14,17 +14,19 @@ public class ProducerRecordPojo {
     private Object key;
     private Object value;
     private Long timestamp;
+    private long dbTimestamp;
 
 
     public ProducerRecordPojo() { }
 
-    public ProducerRecordPojo(ProducerRecord record) {
+    public ProducerRecordPojo(ProducerRecord record, long dbTimestamp) {
         topic = record.topic();
         partition = record.partition();
         key = record.key();
         value = record.value();
         timestamp = record.timestamp();
         headers = new ArrayList<>();
+        this.dbTimestamp = dbTimestamp;
         if (record.headers() != null) {
             record.headers().forEach(header -> headers.add(new HeaderPojo(header)));
         }
@@ -77,5 +79,9 @@ public class ProducerRecordPojo {
 
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public long getDbTimestamp() {
+        return dbTimestamp;
     }
 }
